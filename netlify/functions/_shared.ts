@@ -1,15 +1,37 @@
 /** Shared helpers for the Netlify Functions backend. */
+import type { HandlerEvent } from '@netlify/functions';
+import { getStore, connectLambda, type Store } from '@netlify/blobs';
+
+/**
+ * Returns a Netlify Blobs store, wired for the **Lambda-compatibility** function
+ * signature. With this signature, `@netlify/blobs` cannot auto-discover its
+ * context, so we MUST call `connectLambda(event)` first — otherwise `getStore`
+ * throws and the function returns a 502. (This was the cause of the online-mode
+ * 502.) `connectLambda` is idempotent and safe to call on every invocation.
+ */
+export function blobStore(event: HandlerEvent, name: string): Store {
+  // `connectLambda` expects the raw Lambda event (with the injected `blobs`
+  // context field), which is a superset of HandlerEvent at runtime.
+  connectLambda(event as unknown as Parameters<typeof connectLambda>[0]);
+  return getStore(name);
+}
 
 export const JSON_HEADERS = {
   'Content-Type': 'application/json',
   'Cache-Control': 'no-store',
 };
 
-export function ok(body: unknown) {
+export interface FnResponse {
+  statusCode: number;
+  headers: typeof JSON_HEADERS;
+  body: string;
+}
+
+export function ok(body: unknown): FnResponse {
   return { statusCode: 200, headers: JSON_HEADERS, body: JSON.stringify(body) };
 }
 
-export function bad(status: number, error: string) {
+export function bad(status: number, error: string): FnResponse {
   return { statusCode: status, headers: JSON_HEADERS, body: JSON.stringify({ error }) };
 }
 
