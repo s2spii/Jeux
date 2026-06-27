@@ -1,6 +1,13 @@
-import type { Handler } from '@netlify/functions';
-import { getStore } from '@netlify/blobs';
-import { ok, bad, isValidGame, cleanName, rateLimited } from './_shared';
+import type { Handler, HandlerEvent } from '@netlify/functions';
+import {
+  ok,
+  bad,
+  blobStore,
+  isValidGame,
+  cleanName,
+  rateLimited,
+  type FnResponse,
+} from './_shared';
 
 /**
  * Online room store for live (polled) multiplayer. State is a free-form object
@@ -47,7 +54,16 @@ function mergePatch(state: RoomState, patch: Record<string, unknown>): RoomState
 }
 
 export const handler: Handler = async (event) => {
-  const store = getStore('rooms');
+  try {
+    return await route(event);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Erreur serveur.';
+    return bad(500, `Salon indisponible : ${message}`);
+  }
+};
+
+const route = async (event: HandlerEvent): Promise<FnResponse> => {
+  const store = blobStore(event, 'rooms');
 
   if (event.httpMethod === 'GET') {
     const code = (event.queryStringParameters?.code ?? '').toUpperCase();

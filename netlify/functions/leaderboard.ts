@@ -1,12 +1,13 @@
 import type { Handler, HandlerEvent } from '@netlify/functions';
-import { getStore } from '@netlify/blobs';
 import {
   ok,
   bad,
+  blobStore,
   isValidGame,
   cleanName,
   cleanScore,
   rateLimited,
+  type FnResponse,
 } from './_shared';
 
 interface Row {
@@ -28,7 +29,17 @@ function clientIp(event: HandlerEvent): string {
 }
 
 export const handler: Handler = async (event) => {
-  const store = getStore('leaderboard');
+  try {
+    return await route(event);
+  } catch (err) {
+    // Never leak a 502: surface a readable error instead.
+    const message = err instanceof Error ? err.message : 'Erreur serveur.';
+    return bad(500, `Classement indisponible : ${message}`);
+  }
+};
+
+const route = async (event: HandlerEvent): Promise<FnResponse> => {
+  const store = blobStore(event, 'leaderboard');
 
   if (event.httpMethod === 'GET') {
     const game = event.queryStringParameters?.game ?? '';
